@@ -13,8 +13,7 @@ defmodule LoadProcessModel do
     %__MODULE__{
       request: request,
       step_name: name,
-      end_time: :erlang.system_time(:milli_seconds) + duration,
+      end_time: :erlang.system_time(:milli_seconds) + duration
     }
   end
-
 end

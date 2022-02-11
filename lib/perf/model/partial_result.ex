@@ -1,21 +1,19 @@
 defmodule PartialResult do
-  defstruct [
-    success_count: 0,
-    http_count: 0,
-    total_count: 0,
-    fail_http_count: 0,
-    protocol_error_count: 0,
-    invocation_error_count: 0,
-    error_conn_count: 0,
-    nil_conn_count: 0,
-    success_mean_latency: 0,
-    http_mean_latency: 0,
-    http_max_latency: 0,
-    success_max_latency: 0,
-    concurrency: 1,
-    times: [],
-    p90: 0,
-  ]
+  defstruct success_count: 0,
+            http_count: 0,
+            total_count: 0,
+            fail_http_count: 0,
+            protocol_error_count: 0,
+            invocation_error_count: 0,
+            error_conn_count: 0,
+            nil_conn_count: 0,
+            success_mean_latency: 0,
+            http_mean_latency: 0,
+            http_max_latency: 0,
+            success_max_latency: 0,
+            concurrency: 1,
+            times: [],
+            p90: 0
 
   def new, do: %__MODULE__{}
 
@@ -44,88 +42,92 @@ defmodule PartialResult do
 
   defp calculate(partial = %__MODULE__{}, {_time, {:ok, latency}}) do
     latency = latency / 1000
-    %{partial |
-      success_count: partial.success_count + 1,
-      http_count: partial.http_count + 1,
-      total_count: partial.total_count + 1,
-      success_mean_latency: partial.success_mean_latency + latency,
-      http_mean_latency: partial.http_mean_latency + latency,
-      success_max_latency: max(latency, partial.success_max_latency),
-      http_max_latency: max(latency, partial.http_max_latency),
-      times: [latency | partial.times]
+
+    %{
+      partial
+      | success_count: partial.success_count + 1,
+        http_count: partial.http_count + 1,
+        total_count: partial.total_count + 1,
+        success_mean_latency: partial.success_mean_latency + latency,
+        http_mean_latency: partial.http_mean_latency + latency,
+        success_max_latency: max(latency, partial.success_max_latency),
+        http_max_latency: max(latency, partial.http_max_latency),
+        times: [latency | partial.times]
     }
   end
 
   defp calculate(partial = %__MODULE__{}, {0, :invocation_error}) do
-    %{partial |
-      total_count: partial.total_count + 1,
-      invocation_error_count: partial.invocation_error_count + 1
+    %{
+      partial
+      | total_count: partial.total_count + 1,
+        invocation_error_count: partial.invocation_error_count + 1
     }
   end
 
   defp calculate(partial = %__MODULE__{}, {_time, {:nil_conn, _reason}}) do
-    %{partial |
-      total_count: partial.total_count + 1,
-      nil_conn_count: partial.nil_conn_count + 1
-    }
+    %{partial | total_count: partial.total_count + 1, nil_conn_count: partial.nil_conn_count + 1}
   end
 
   defp calculate(partial = %__MODULE__{}, {_time, {:error_conn, _reason}}) do
-    %{partial |
-      total_count: partial.total_count + 1,
-      error_conn_count: partial.error_conn_count + 1
+    %{
+      partial
+      | total_count: partial.total_count + 1,
+        error_conn_count: partial.error_conn_count + 1
     }
   end
 
   defp calculate(partial = %__MODULE__{}, {_time, {:protocol_error, _reason}}) do
-    %{partial |
-      total_count: partial.total_count + 1,
-      protocol_error_count: partial.protocol_error_count + 1
+    %{
+      partial
+      | total_count: partial.total_count + 1,
+        protocol_error_count: partial.protocol_error_count + 1
     }
   end
 
   defp calculate(partial = %__MODULE__{}, {_time, {{:fail_http, _status_code}, latency}}) do
     latency = latency / 1000
-    %{partial |
-      total_count: partial.total_count + 1,
-      http_count: partial.http_count + 1,
-      fail_http_count: partial.fail_http_count + 1,
-      http_mean_latency: partial.http_mean_latency + latency,
-      http_max_latency: max(latency, partial.http_max_latency)
+
+    %{
+      partial
+      | total_count: partial.total_count + 1,
+        http_count: partial.http_count + 1,
+        fail_http_count: partial.fail_http_count + 1,
+        http_mean_latency: partial.http_mean_latency + latency,
+        http_max_latency: max(latency, partial.http_max_latency)
     }
   end
-  
+
   def calculate_p90(partial = %__MODULE__{}) do
     case Enum.count(partial.times) do
       0 ->
         partial
-      _ -> 
+
+      _ ->
         sorted_times = Enum.sort(partial.times)
         n = length(sorted_times)
         index = 0.90 * n
-    
-        p90_calc = case is_round?(index) do
-          true ->
-            x = Enum.at(sorted_times, trunc(index))
-            xp = Enum.at(sorted_times, trunc(index)+1)
-            (x + xp) / 2 
-              |> IO.inspect
+
+        p90_calc =
+          case is_round?(index) do
+            true ->
+              x = Enum.at(sorted_times, trunc(index))
+              xp = Enum.at(sorted_times, trunc(index) + 1)
+
+              ((x + xp) / 2)
+              |> IO.inspect()
               |> round
-          false -> 
-            index = round(index)
-            Enum.at(sorted_times, index)
-        end
-        |> round
-    
-        %{partial |
-          p90: p90_calc,
-          times: [],
-        }
+
+            false ->
+              index = round(index)
+              Enum.at(sorted_times, index)
+          end
+          |> round
+
+        %{partial | p90: p90_calc, times: []}
     end
   end
 
   defp is_round?(n) do
     Float.floor(n) == n
   end
-
 end

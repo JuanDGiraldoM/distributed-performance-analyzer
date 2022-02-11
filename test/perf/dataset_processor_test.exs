@@ -23,5 +23,4 @@ defmodule DatasetTest do
     data = Dataset.parse_csv("test/perf/dataset/sample2.csv", ";")
     assert data == @sample_data
   end
-
 end

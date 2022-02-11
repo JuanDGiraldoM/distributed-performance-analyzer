@@ -12,7 +12,7 @@ defmodule Perf.ConnectionProcess do
   end
 
   def request(pid, method, path, headers, body) do
-    :timer.tc(fn  ->
+    :timer.tc(fn ->
       GenServer.call(pid, {:request, method, path, headers, body}, 15_000)
     end)
   end
@@ -44,10 +44,15 @@ defmodule Perf.ConnectionProcess do
   @impl true
   def handle_call({:request, method, path, headers, body}, from, state) do
     init_time = :erlang.monotonic_time(:micro_seconds)
-    #IO.puts "Making Request!"
+    # IO.puts "Making Request!"
     case Mint.HTTP.request(state.conn, method, path, headers, body) do
       {:ok, conn, request_ref} ->
-        state = %{state | conn: conn, request: %{from: from, response: %{}, ref: request_ref, status: nil, init: init_time}}
+        state = %{
+          state
+          | conn: conn,
+            request: %{from: from, response: %{}, ref: request_ref, status: nil, init: init_time}
+        }
+
         {:noreply, state}
 
       {:error, conn, reason} ->
@@ -60,9 +65,14 @@ defmodule Perf.ConnectionProcess do
   @impl true
   def handle_info(:late_init, state = %__MODULE__{params: {scheme, host, port}}) do
     case Mint.HTTP.connect(scheme, host, port, options(scheme)) do
-      {:ok, conn} -> {:noreply, %{state | conn: conn}}
+      {:ok, conn} ->
+        {:noreply, %{state | conn: conn}}
+
       {:error, err} ->
-        Logger.warn("Error creating connection with #{inspect({scheme, host, port})}: #{inspect(err)}")
+        Logger.warn(
+          "Error creating connection with #{inspect({scheme, host, port})}: #{inspect(err)}"
+        )
+
         {:noreply, state}
     end
   end
@@ -80,7 +90,8 @@ defmodule Perf.ConnectionProcess do
         Logger.warn(fn -> "Received unknown message: " <> inspect(message) end)
         {:noreply, state}
 
-      {:ok, conn, []} -> {:noreply, put_in(state.conn, conn)}
+      {:ok, conn, []} ->
+        {:noreply, put_in(state.conn, conn)}
 
       {:ok, conn, responses} ->
         state = put_in(state.conn, conn)
@@ -88,18 +99,19 @@ defmodule Perf.ConnectionProcess do
         {:noreply, state}
 
       {:error, _conn, reason, _responses} ->
-        #IO.puts("########ERROR########")
-        #IO.inspect(reason)
+        # IO.puts("########ERROR########")
+        # IO.inspect(reason)
         case state.request do
           %{from: from, ref: _request_ref} -> GenServer.reply(from, {:protocol_error, reason})
           _ -> nil
         end
+
         {:noreply, put_in(state.conn, nil)}
     end
   end
 
   defp process_response_fn(%__MODULE__{request: %{ref: original_ref}}) do
-    fn (message, state) ->
+    fn message, state ->
       case message do
         {:status, ^original_ref, status} -> put_in(state.request.status, status)
         {:done, ^original_ref} -> process_response(message, state)
@@ -109,22 +121,25 @@ defmodule Perf.ConnectionProcess do
     end
   end
 
-
-  defp process_response({:done, _request_ref}, state = %__MODULE__{request: %{from: from, init: init, status: status}}) do
-    #IO.puts("Done request!")
+  defp process_response(
+         {:done, _request_ref},
+         state = %__MODULE__{request: %{from: from, init: init, status: status}}
+       ) do
+    # IO.puts("Done request!")
     GenServer.reply(from, {status_for(status), :erlang.monotonic_time(:micro_seconds) - init})
     %{state | request: %{}}
   end
 
-  defp process_response({:error, _request_ref, reason}, state = %__MODULE__{request: %{from: from, init: _init}}) do
+  defp process_response(
+         {:error, _request_ref, reason},
+         state = %__MODULE__{request: %{from: from, init: _init}}
+       ) do
     GenServer.reply(from, {:protocol_error, reason})
-    #IO.puts("Request error")
+    # IO.puts("Request error")
     IO.inspect(reason)
     %{state | request: %{}}
   end
 
   defp status_for(status) when status >= 200 and status < 400, do: :ok
   defp status_for(status), do: {:fail_http, status}
-
-
 end

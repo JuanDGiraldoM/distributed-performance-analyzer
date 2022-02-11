@@ -37,7 +37,10 @@ defmodule Perf.ConnectionPool do
     if capacity > actual do
       actual_from = total_cap + 1
       capacity_to = total_cap + 1 + to_create
-      created = Enum.map(actual_from..capacity_to, fn id -> create_connection(scheme, host, port, id) end)
+
+      created =
+        Enum.map(actual_from..capacity_to, fn id -> create_connection(scheme, host, port, id) end)
+
       {:reply, {:ok, to_create}, {scheme, host, port, created ++ pool, total_cap + to_create + 1}}
     else
       {:reply, {:ok, 0}, {scheme, host, port, pool, total_cap}}
@@ -61,12 +64,13 @@ defmodule Perf.ConnectionPool do
 
   defp create_connection(scheme, host, port, id) do
     name = Perf.AppRegistry.via_tuple(id)
-    {:ok, _pid} = DynamicSupervisor.start_child(
-      Perf.ConnectionSupervisor,
-      {Perf.ConnectionProcess, {scheme, host, port, name}}
-    )
+
+    {:ok, _pid} =
+      DynamicSupervisor.start_child(
+        Perf.ConnectionSupervisor,
+        {Perf.ConnectionProcess, {scheme, host, port, name}}
+      )
+
     name
   end
-
-
 end

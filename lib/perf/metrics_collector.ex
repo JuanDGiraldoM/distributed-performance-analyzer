@@ -26,13 +26,26 @@ defmodule Perf.MetricsCollector do
 
   @impl true
   def handle_call({:results, partial = %PartialResult{}, step, concurrency}, _from, state) do
-    state = Map.update(state, step, partial, fn acc_partial -> PartialResult.combine(acc_partial, partial) end)
+    state =
+      Map.update(state, step, partial, fn acc_partial ->
+        PartialResult.combine(acc_partial, partial)
+      end)
+
     partial = state[step]
+
     if partial.concurrency == concurrency do
-      new_state = Map.update(state, step, partial, fn acc_partial -> PartialResult.calculate_p90(state[step]) end)
+      new_state =
+        Map.update(state, step, partial, fn acc_partial ->
+          PartialResult.calculate_p90(state[step])
+        end)
+
       partial = new_state[step]
       mean_latency = partial.success_mean_latency / (partial.success_count + 0.00001)
-      IO.puts("#{concurrency}, #{partial.success_count} -- #{round(mean_latency)}ms, #{partial.p90}ms, #{partial.fail_http_count}, #{partial.protocol_error_count}, #{partial.error_conn_count}, #{partial.nil_conn_count}")
+
+      IO.puts(
+        "#{concurrency}, #{partial.success_count} -- #{round(mean_latency)}ms, #{partial.p90}ms, #{partial.fail_http_count}, #{partial.protocol_error_count}, #{partial.error_conn_count}, #{partial.nil_conn_count}"
+      )
+
       {:reply, :ok, new_state}
     else
       {:reply, :ok, state}
@@ -48,5 +61,4 @@ defmodule Perf.MetricsCollector do
   def handle_cast(:clean, state) do
     {:noreply, %{}}
   end
-
 end
